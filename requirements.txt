@@ -1,0 +1,4 @@
+Flask
+WTForms
+pytest
+pytest-flask
