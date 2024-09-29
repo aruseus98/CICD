@@ -1,0 +1,77 @@
+---
+- name: Déployer l'application Flask avec Docker
+  hosts: all
+  become: yes
+  tasks:
+    - name: Vérifier si Docker est installé
+      command: docker --version
+      register: docker_installed
+      ignore_errors: yes
+
+    - name: Installer Docker si absent (Debian/Ubuntu)
+      apt:
+        name: docker.io
+        state: present
+        update_cache: yes
+      when: docker_installed.rc != 0
+
+    - name: Démarrer Docker si nécessaire
+      systemd:
+        name: docker
+        state: started
+        enabled: yes
+      when: docker_installed.rc != 0
+
+    - name: Créer un répertoire pour l'application sur la machine distante
+      file:
+        path: /home/projet-prod/Desktop/flask-app-dev
+        state: directory
+        mode: '0755'
+        recurse: yes
+
+    - name: Copier les fichiers de l'application sur la machine distante
+      copy:
+        src: "{{ item }}"
+        dest: /home/projet-prod/Desktop/flask-app-dev
+      with_items:
+        - Dockerfile
+        - app.py
+        - requirements.txt
+        - templates
+        - tests
+        - forms.py
+
+    - name: Vérifier si le conteneur existe déjà
+      shell: docker ps -a -q --filter name=flask-app-dev
+      register: existing_container
+      ignore_errors: yes
+
+    - name: Supprimer le conteneur existant s'il est présent
+      shell: docker rm -f flask-app-dev
+      when: existing_container.stdout != ""
+      ignore_errors: yes
+
+    - name: Vérifier si l'image existe déjà
+      shell: docker images -q flask-app-dev:latest
+      register: existing_image
+      ignore_errors: yes
+
+    - name: Supprimer l'image existante si elle est présente
+      shell: docker rmi flask-app-dev:latest
+      when: existing_image.stdout != ""
+      ignore_errors: yes
+
+    - name: Construire l'image Docker directement
+      shell: |
+        cd /home/projet-prod/Desktop/flask-app-dev
+        docker build -t flask-app-dev:latest .
+      when: docker_installed.rc == 0
+
+    - name: Déployer l'application Python Docker
+      docker_container:
+        name: flask-app-dev
+        image: flask-app-dev:latest
+        state: started
+        ports:
+          - "5000:5000"
+        restart_policy: always
