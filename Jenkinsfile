@@ -5,6 +5,7 @@ pipeline {
             args '-u root'
         }
     }
+
     environment {
         SONAR_PROJECT_KEY_DEV = 'Projet-CICD-Dev'
     }
@@ -19,6 +20,7 @@ pipeline {
                 }
             }
         }
+
         stage('Build') {
             steps {
                 echo "Building application on ${env.BRANCH_NAME} branch"
@@ -27,12 +29,14 @@ pipeline {
                 sh 'pip install -r requirements.txt'
             }
         }
+
         stage('Run Tests') {
             steps {
                 echo "Running Python test on ${env.BRANCH_NAME} branch"
                 sh 'pytest --maxfail=1 --disable-warnings'
             }
         }
+
         stage('Analyse SonarQube') {
             agent {
                 docker {
@@ -48,6 +52,7 @@ pipeline {
                 }
             }
         }
+
         stage('Deploy with Ansible') {
             agent {
                 docker {
@@ -63,7 +68,6 @@ pipeline {
                         ansiblePlaybook(
                             playbook: 'deploy-app-dev.yml',
                             inventory: 'hosts.ini',
-
                             extraVars: [
                                 ansible_become_pass: "${SUDO_PASS}"
                             ]
@@ -72,6 +76,7 @@ pipeline {
                 }
             }
         }
+
         stage('Succès') {
             steps {
                 script {
