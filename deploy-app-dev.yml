@@ -1,4 +1,3 @@
----
 - name: Déployer l'application Flask avec Docker Swarm et un registry temporaire
   hosts: manager
   become: yes
@@ -8,36 +7,26 @@
       register: docker_installed
       ignore_errors: yes
 
-    - name: Installer Docker si absent (Debian/Ubuntu)
+    - name: Installer Docker et Docker Compose si absent (Debian/Ubuntu)
       apt:
-        name: docker.io
+        name:
+          - docker.io
+          - docker-compose
         state: present
         update_cache: yes
       when: docker_installed.rc != 0
 
-    - name: Créer un répertoire pour l'application sur le manager
-      file:
-        path: /home/projet-prod/Desktop/flask-app-dev
-        state: directory
-        mode: '0755'
-        recurse: yes
-
     - name: Copier les fichiers de l'application sur le manager
       copy:
         src: "{{ item }}"
-        dest: /home/projet-prod/Desktop/flask-app-dev
+        dest: /home/projet-prod/Desktop/flask-app-dev/
       with_items:
         - Dockerfile
         - app.py
         - requirements.txt
         - templates
-        - tests
         - forms.py
-
-    - name: Construire l'image Docker sur le manager
-      shell: |
-        cd /home/projet-prod/Desktop/flask-app-dev
-        docker build -t flask-app-dev:latest .
+        - docker-compose.yml
 
     - name: Supprimer un ancien service registry s'il existe
       shell: docker service rm registry
@@ -53,30 +42,21 @@
       retries: 5
       delay: 5
 
+    - name: Construire l'image Docker sur le manager
+      shell: |
+        cd /home/projet-prod/Desktop/flask-app-dev
+        docker build -t flask-app-dev:latest .
+
     - name: Taguer l'image Docker pour le registry local
       shell: docker tag flask-app-dev:latest localhost:5001/flask-app-dev:latest
 
     - name: Pousser l'image dans le registry local
       shell: docker push localhost:5001/flask-app-dev:latest
 
-- name: Déployer l'application Flask sur Docker Swarm
-  hosts: manager
-  become: yes
-  tasks:
-    - name: Supprimer le service existant s'il est présent
-      shell: docker service rm flask-app-dev
-      ignore_errors: yes
-
-    - name: Déployer l'application en tant que service Docker Swarm
+    - name: Lancer l'application Flask avec Docker Compose sur Swarm
       shell: |
-        docker service create \
-        --name flask-app-dev \
-        --replicas 3 \
-        --publish 5000:5000 \
-        localhost:5001/flask-app-dev:latest
-
-    - name: Vérifier que le service est bien déployé
-      shell: docker service ls
+        cd /home/projet-prod/Desktop/flask-app-dev
+        docker stack deploy -c docker-compose.yml flask-app
 
 - name: Supprimer le registry temporaire après le déploiement
   hosts: manager
