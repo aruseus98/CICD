@@ -130,10 +130,10 @@ services:
     environment:
       - GF_SMTP_ENABLED=true
       - GF_SMTP_HOST=smtp.gmail.com:587
-      - GF_SMTP_USER=furiousducks196@gmail.com
-      - GF_SMTP_PASSWORD=ewqf webb rprk fnqm 
+      - GF_SMTP_USER=GMAIL_ACCOUNT
+      - GF_SMTP_PASSWORD=PASSWORD_APP
       - GF_SMTP_SKIP_VERIFY=true
-      - GF_SMTP_FROM_ADDRESS=furiousducks196@gmail.com
+      - GF_SMTP_FROM_ADDRESS=GMAIL_ACCOUNT
       - GF_SMTP_FROM_NAME=Grafana-Projet
     volumes:
       - grafanadata:/var/lib/grafana
