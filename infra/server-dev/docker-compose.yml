@@ -1,0 +1,169 @@
+---
+services:
+
+  traefik:
+    image: traefik:latest
+    container_name: traefik
+    restart: always
+    command:
+      - "--api.insecure=true"
+      - "--providers.docker=true"
+      - "--entrypoints.web.address=:80"
+    ports:
+      - "80:80"  # Traefik écoute sur le port 80 pour rediriger le trafic HTTP
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.traefik.rule=Host(`traefik-localhost.fr`)"
+      - "traefik.http.routers.traefik.service=api@internal"
+    volumes:
+      - "/var/run/docker.sock:/var/run/docker.sock"
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.10
+
+  gitlab:
+    image: gitlab/gitlab-ce:latest
+    container_name: gitlab
+    restart: always
+    environment:
+      GITLAB_OMNIBUS_CONFIG: >
+        external_url "http://gitlab-localhost.fr"
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.gitlab.rule=Host(`gitlab-localhost.fr`)"
+      - "traefik.http.services.gitlab.loadbalancer.server.port=80"
+    ports:
+      - 64502:22
+    volumes:
+      - data:/var/opt/gitlab
+      - config_gitlab:/etc/gitlab
+      - logs:/var/log/gitlab
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.2
+
+  jenkins:
+    image: jenkins/jenkins:lts
+    restart: always
+    user: "1000:999"
+    container_name: jenkins
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.jenkins.rule=Host(`jenkins-localhost.fr`)"
+      - "traefik.http.services.jenkins.loadbalancer.server.port=8080"
+    volumes:
+      - jenkins_home:/var/jenkins_home
+      - /home/projet-git/.ssh:/var/jenkins_home/.ssh
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /usr/bin/docker:/usr/bin/docker
+      - /usr/local/bin/docker-compose:/usr/local/bin/docker-compose
+      - /etc/passwd:/etc/passwd:ro
+      - /etc/group:/etc/group:ro
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.3
+
+  sonarqube:
+    image: sonarqube:latest
+    container_name: sonarqube
+    restart: always
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.sonarqube.rule=Host(`sonarqube-localhost.fr`)"
+      - "traefik.http.services.sonarqube.loadbalancer.server.port=9000"
+    environment:
+      - SONARQUBE_JDBC_URL=jdbc:postgresql://db:5432/sonar
+      - SONARQUBE_JDBC_USERNAME=sonar
+      - SONARQUBE_JDBC_PASSWORD=sonar
+    volumes:
+      - sonarqubedata:/opt/sonarqube/data
+      - sonarqubeextensions:/opt/sonarqube/extensions
+      - sonarqubelogs:/opt/sonarqube/logs
+      - sonarqubetemp:/opt/sonarqube/temp
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.4
+
+  sonar-db:
+    image: postgres:latest
+    restart: always
+    environment:
+      - POSTGRES_USER=sonar
+      - POSTGRES_PASSWORD=sonar
+      - POSTGRES_DB=sonar
+    volumes:
+      - postgresqldata:/var/lib/postgresql/data
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.5
+
+  prometheus:
+    image: prom/prometheus:latest
+    restart: always
+    container_name: prometheus
+    volumes:
+      - /home/projet-git/Desktop/projet/prometheus-config.yml:/etc/prometheus/prometheus.yml
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.6
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    container_name: node_exporter
+    restart: always
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/rootfs:ro
+    command:
+      - '--path.procfs=/host/proc'
+      - '--path.sysfs=/host/sys'
+      - '--collector.filesystem.ignored-mount-points="^/(sys|proc|dev|host|etc)($$|/)"'
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.7
+
+  grafana:
+    image: grafana/grafana:latest
+    restart: always
+    container_name: grafana
+    environment:
+      - GF_SMTP_ENABLED=true
+      - GF_SMTP_HOST=smtp.gmail.com:587
+      - GF_SMTP_USER=furiousducks196@gmail.com
+      - GF_SMTP_PASSWORD=ewqf webb rprk fnqm 
+      - GF_SMTP_SKIP_VERIFY=true
+      - GF_SMTP_FROM_ADDRESS=furiousducks196@gmail.com
+      - GF_SMTP_FROM_NAME=Grafana-Projet
+    volumes:
+      - grafanadata:/var/lib/grafana
+      - grafanalogs:/var/log/grafana
+      - grafanaplugins:/var/lib/grafana/plugins
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.grafana.rule=Host(`grafana-localhost.fr`)" 
+      - "traefik.http.services.grafana.loadbalancer.server.port=3000" 
+    networks:
+      gitlab:
+        ipv4_address: 172.18.0.8
+
+volumes:
+  data: 
+  config_gitlab:
+  logs:
+  jenkins_home:
+  sonarqubedata:
+  sonarqubeextensions: 
+  sonarqubelogs:
+  sonarqubetemp:
+  postgresqldata:
+  grafanadata:
+  grafanalogs:
+  grafanaplugins:
+
+networks:
+  gitlab:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
