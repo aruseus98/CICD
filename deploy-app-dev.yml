@@ -58,9 +58,9 @@
         cd /home/projet-prod/Desktop/flask-app-dev
         docker stack deploy -c docker-compose.yml flask-app
 
-- name: Supprimer le registry temporaire après le déploiement
-  hosts: manager
-  become: yes
-  tasks:
-    - name: Supprimer le service de registry
-      shell: docker service rm registry
+# - name: Supprimer le registry temporaire après le déploiement
+#   hosts: manager
+#   become: yes
+#   tasks:
+#     - name: Supprimer le service de registry
+#       shell: docker service rm registry
