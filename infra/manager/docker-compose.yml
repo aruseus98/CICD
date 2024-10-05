@@ -1,0 +1,32 @@
+services:
+  traefik:
+    image: traefik:latest  # Utilise la version la plus récente de Traefik
+    ports:
+      - 80:80
+    deploy:
+      mode: global 
+      placement:
+        constraints:
+          - node.role == manager
+      labels:
+        - traefik.enable=true
+        - traefik.docker.network=traefik-public
+        - traefik.http.routers.traefik-public-http.rule=Host(`traefik-localhost.fr`)
+        - traefik.http.routers.traefik-public-http.entrypoints=http
+        - traefik.http.services.traefik-public.loadbalancer.server.port=80
+        - traefik.http.routers.traefik-public-http.service=api@internal
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+    command:
+      - --providers.swarm.endpoint=unix:///var/run/docker.sock
+      - --providers.swarm.network=traefik-public
+      - --providers.swarm.exposedbydefault=false
+      - --entrypoints.http.address=:80
+      - --api
+      - --accesslog.bufferingsize=100
+      - --accesslog.filepath=/var/log/traefik/traefik-access.log
+      - --log
+
+networks:
+  traefik-public:

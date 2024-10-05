@@ -1,0 +1,33 @@
+services:
+  flask-app:
+    image: localhost:5001/flask-app-dev:latest
+    volumes:
+      - data:/app
+      - /app/templates
+    deploy:
+      replicas: 5
+      placement:
+        preferences:
+          - spread: node.role
+      restart_policy:
+        condition: on-failure
+      update_config:
+        parallelism: 2
+        delay: 10s
+      rollback_config:
+        parallelism: 1
+      labels:
+        - "traefik.enable=true"  
+        - "traefik.http.routers.flask-app.rule=Host(`flask-app.local`)"  
+        - "traefik.http.services.flask-app.loadbalancer.server.port=5000"  
+        - "traefik.http.routers.flask-app.entrypoints=http"  
+        - "traefik.docker.network=traefik_default"  
+    networks:
+      - traefik_default
+
+volumes:
+  data:
+
+networks:
+  traefik_default:
+    external: true
