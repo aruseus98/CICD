@@ -1,0 +1,66 @@
+- name: Déployer l'application Flask avec Docker Swarm et un registry temporaire
+  hosts: manager
+  become: yes
+  tasks:
+    - name: Vérifier si Docker est installé sur le manager
+      command: docker --version
+      register: docker_installed
+      ignore_errors: yes
+
+    - name: Installer Docker et Docker Compose si absent (Debian/Ubuntu)
+      apt:
+        name:
+          - docker.io
+          - docker-compose
+        state: present
+        update_cache: yes
+      when: docker_installed.rc != 0
+
+    - name: Copier les fichiers de l'application sur le manager
+      copy:
+        src: "{{ item }}"
+        dest: /home/projet-prod/Desktop/flask-app-dev/
+      with_items:
+        - Dockerfile
+        - app.py
+        - requirements.txt
+        - templates
+        - forms.py
+        - docker-compose.yml
+
+    - name: Supprimer un ancien service registry s'il existe
+      shell: docker service rm registry
+      ignore_errors: yes
+
+    - name: Créer un registry temporaire dans Docker Swarm
+      shell: docker service create --name registry --publish published=5001,target=5000 registry:2
+
+    - name: Attendre que le registry soit prêt
+      shell: docker service ls --filter name=registry --format '{{'{{'}}.Replicas{{'}}'}}'
+      register: replicas_status
+      until: replicas_status.stdout == "1/1"
+      retries: 5
+      delay: 5
+
+    - name: Construire l'image Docker sur le manager
+      shell: |
+        cd /home/projet-prod/Desktop/flask-app-dev
+        docker build -t flask-app-dev:latest .
+
+    - name: Taguer l'image Docker pour le registry local
+      shell: docker tag flask-app-dev:latest localhost:5001/flask-app-dev:latest
+
+    - name: Pousser l'image dans le registry local
+      shell: docker push localhost:5001/flask-app-dev:latest
+
+    - name: Lancer l'application Flask avec Docker Compose sur Swarm
+      shell: |
+        cd /home/projet-prod/Desktop/flask-app-dev
+        docker stack deploy -c docker-compose.yml flask-app
+
+# - name: Supprimer le registry temporaire après le déploiement
+#   hosts: manager
+#   become: yes
+#   tasks:
+#     - name: Supprimer le service de registry
+#       shell: docker service rm registry
